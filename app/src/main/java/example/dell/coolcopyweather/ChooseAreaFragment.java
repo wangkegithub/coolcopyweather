@@ -1,9 +1,11 @@
 package example.dell.coolcopyweather;
 
 import android.app.ProgressDialog;
+import android.content.Intent;
 import android.os.Bundle;
 import android.support.annotation.Nullable;
 import android.support.v4.app.Fragment;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -12,15 +14,22 @@ import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.ListView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import org.litepal.crud.DataSupport;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
 import example.dell.coolcopyweather.db.City;
 import example.dell.coolcopyweather.db.County;
 import example.dell.coolcopyweather.db.Province;
+import example.dell.coolcopyweather.util.HttpUtil;
+import example.dell.coolcopyweather.util.Utility;
+import okhttp3.Call;
+import okhttp3.Callback;
+import okhttp3.Response;
 
 /**
  * Created by dell on 2018/4/4.
@@ -75,6 +84,14 @@ public class ChooseAreaFragment extends Fragment {
                     selectedCity = cityList.get(position);
                     queryCounties();
                 }
+                else if (currentLevel == LEVEL_COUNTY)
+                {
+                    String weatherId = countyList.get(position).getWeatherId();
+                    Intent intent = new Intent(getActivity(), WeatherActivity.class);
+                    intent.putExtra("weather_id", weatherId);
+                    startActivity(intent);
+                    getActivity().finish();
+                }
             }
         });
 
@@ -117,23 +134,21 @@ public class ChooseAreaFragment extends Fragment {
         }
     }
 
-    private void queryCities(){
-        titleText.setText(selectedProvince.getProvinceCode());
+    private void queryCities() {
+        Log.d("aaaa", "queryCities: ");
+        titleText.setText(selectedProvince.getProvinceName());
         backButton.setVisibility(View.VISIBLE);
-        cityList = DataSupport.where("province = ?", String.valueOf(selectedProvince.getId())).find(City.class);
-        if (cityList.size() > 0)
-        {
+        cityList = DataSupport.where("provinceid = ?", String.valueOf(selectedProvince.getId())).find(City.class);
+        if (cityList.size() > 0) {
             dataList.clear();
-            for (City city : cityList)
-            {
+            for (City city : cityList) {
                 dataList.add(city.getCityName());
             }
             adapter.notifyDataSetChanged();
             listView.setSelection(0);
             currentLevel = LEVEL_CITY;
-        }
-        else
-        {
+        } else {
+            Log.d("bbbb", "queryCities: ");
             int provinceCode = selectedProvince.getProvinceCode();
             String address = "http://guolin.tech/api/china/" + provinceCode;
             queryFromServer(address, "city");
@@ -165,6 +180,75 @@ public class ChooseAreaFragment extends Fragment {
     }
 
     private void queryFromServer(String address, final String type){
+        showProgressDialog();
+        HttpUtil.sendOkHttpRequest(address, new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                getActivity().runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        closeProgressDialog();
+                        Toast.makeText(getContext(), "load failed", Toast.LENGTH_LONG).show();
+                    }
+                });
+            }
 
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                String responseText = response.body().string();
+                boolean result = false;
+                if ("province".equals(type))
+                {
+                    result = Utility.handleProvinceResponse(responseText);
+                }
+                else if ("city".equals(type))
+                {
+                    result = Utility.handleCityResponse(responseText, selectedProvince.getId());
+                }
+                else if ("county".equals(type))
+                {
+                    result = Utility.handleCountyResponse(responseText, selectedCity.getId());
+                }
+
+                if (result)
+                {
+                    getActivity().runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            closeProgressDialog();
+                            if ("province".equals(type))
+                            {
+                                queryProvinces();
+                            }
+                            else if ("city".equals(type))
+                            {
+                                queryCities();
+                            }
+                            else if ("county".equals(type))
+                            {
+                                queryCounties();
+                            }
+                        }
+                    });
+                }
+            }
+        });
+    }
+
+    private void showProgressDialog(){
+        if ((progressDialog == null))
+        {
+            progressDialog = new ProgressDialog(getActivity());
+            progressDialog.setMessage("loading...");
+            progressDialog.setCanceledOnTouchOutside(false);
+        }
+        progressDialog.show();
+    }
+
+    private void closeProgressDialog(){
+        if (progressDialog != null)
+        {
+            progressDialog.dismiss();
+        }
     }
 }

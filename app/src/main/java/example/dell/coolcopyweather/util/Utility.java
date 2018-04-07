@@ -2,6 +2,8 @@ package example.dell.coolcopyweather.util;
 
 import android.text.TextUtils;
 
+import com.google.gson.Gson;
+
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -9,6 +11,7 @@ import org.json.JSONObject;
 import example.dell.coolcopyweather.db.City;
 import example.dell.coolcopyweather.db.County;
 import example.dell.coolcopyweather.db.Province;
+import example.dell.coolcopyweather.gson.Weather;
 
 /**
  * Created by dell on 2018/4/4.
@@ -82,5 +85,18 @@ public class Utility {
             }
         }
         return false;
+    }
+
+    /*解析天气信息*/
+    public static Weather handelWeatherResponse(String response){
+        try {
+            JSONObject jsonObject = new JSONObject(response);
+            JSONArray jsonArray = jsonObject.getJSONArray("HeWeather");
+            String weatherContent = jsonArray.getJSONObject(0).toString();
+            return new Gson().fromJson(weatherContent, Weather.class);
+        }catch (Exception e){
+            e.printStackTrace();
+        }
+        return null;
     }
 }
